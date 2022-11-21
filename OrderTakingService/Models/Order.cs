@@ -15,10 +15,8 @@ namespace OrderTakingService.Models
         public string Id { get; set; } = string.Empty;
         [XmlAttribute]
         public string OrderNo { get; set; } = string.Empty;
-        [XmlAttribute]
-        public string Waiter { get; set; } = string.Empty;
-        [XmlAttribute]
-        public string Table { get; set; } = string.Empty;
+        public Waiter Waiter { get; set; } = new Waiter();
+        public Table Table { get; set; } = new Table();
         [XmlAttribute]
         public string UserId { get; set; } = string.Empty;
         [XmlAttribute]
@@ -30,7 +28,7 @@ namespace OrderTakingService.Models
         [XmlAttribute]
         public string Date { get; set; } = string.Empty;
         [XmlAttribute]
-        public string TiltId { get; set; } = string.Empty;
+        public string DeviceId { get; set; } = string.Empty;
         [XmlAttribute]
         public string TotalTax { get; set; } = string.Empty;
         [XmlAttribute]
@@ -74,7 +72,7 @@ namespace OrderTakingService.Models
         {
             get
             {
-                return Database.GetDoubleData("select tax_amount / 100 from tax where isApplicable = 1");
+                return Database.GetDoubleData("select dbo.udfGetTax()");
             }
         }
 
@@ -82,9 +80,8 @@ namespace OrderTakingService.Models
         {
             get
             {
-                double amount = 0.00;
                 double taxAmount = subTotal * Tax;
-                amount = subTotal + taxAmount;
+                double amount = subTotal + taxAmount;
                 return amount > 0 ? double.Parse(amount.ToString("#.##")) : 0.0;
             }
         }

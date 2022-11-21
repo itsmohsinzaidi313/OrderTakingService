@@ -28,14 +28,6 @@ namespace OrderTakingService.Controllers
 
                 if ("*".Equals(phrase))
                 {
-                    //Menu menu = new Menu
-                    //{
-                    //    Items = GetItems(),
-                    //    Categories = GetCategories(),
-                    //    FixedDeals = GetFixedDeals(),
-                    //    OnSpotDeals = GetOnSpotDeals()
-                    //};
-
                     Menu menu = GetMenu();
 
                     if (menu.IsValid)
@@ -49,10 +41,32 @@ namespace OrderTakingService.Controllers
                 }
                 else
                 {
-                    List<MenuItem> list = SearchItems(phrase);
-                    if (list.Count >= 1)
+                    Menu menu = GetMenu();
+                    Menu searchResult = new Menu();
+                    if (int.TryParse(phrase, out int code))
                     {
-                        return Ok(list);
+                        searchResult = new Menu
+                        {
+                            Categories = menu.Categories,
+                            Items = (from x in menu.Items where x.Code.Contains(code.ToString()) select x).ToList(),
+                            FixedDeals = (from x in menu.FixedDeals where x.Code.Contains(code.ToString()) select x).ToList(),
+                            OnSpotDeals = (from x in menu.OnSpotDeals where x.Code.Contains(code.ToString()) select x).ToList(),
+                        };
+                    }
+                    else
+                    {
+                        searchResult = new Menu
+                        {
+                            Categories = menu.Categories,
+                            Items = (from x in menu.Items where x.Name.Contains(phrase) select x).ToList(),
+                            FixedDeals = (from x in menu.FixedDeals where x.Name.Contains(phrase) select x).ToList(),
+                            OnSpotDeals = (from x in menu.OnSpotDeals where x.Name.Contains(phrase) select x).ToList(),
+                        };
+                    }
+
+                    if ((searchResult.FixedDeals.Count + searchResult.Items.Count + searchResult.OnSpotDeals.Count) >= 1)
+                    {
+                        return Ok(menu);
                     }
                     else
                     {
@@ -96,149 +110,6 @@ namespace OrderTakingService.Controllers
             return InternalServerError(new NotImplementedException(Snippets.RequestNotSupported));
         }
 
-        private List<Category> GetCategories()
-        {
-            DataTable data = Database.ExecProc("uspApiGetPOSCategories", null) ?? new DataTable();
-            List<Category> categories = (from DataRow r in data.Rows.Cast<DataRow>()
-                                         select new Category
-                                         {
-                                             Id = r["id"].ToString(),
-                                             Name = r["category_name"].ToString(),
-                                         }).ToList();
-            return categories;
-        }
-
-        private List<MenuItem> GetItems()
-        {
-            DataTable data = Database.ExecProc("uspApiGetPOSAllItems", null) ?? new DataTable();
-            List<MenuItem> items = (from DataRow r in data.Rows.Cast<DataRow>()
-                                    select new MenuItem
-                                    {
-                                        Id = r["id"].ToString(),
-                                        Code = r["codes"].ToString(),
-                                        CategoryId = r["category_id"].ToString(),
-                                        Name = r["item_name"].ToString(),
-                                        Price = double.Parse(r["sale_price"].ToString()),
-                                        TaxAmount = double.Parse(r["tax_price"].ToString()),
-                                        Quantity = double.Parse(r["quantity"].ToString()),
-                                        Comment = r["comment"].ToString(),
-                                    }).ToList();
-            return items;
-        }
-
-        private List<MenuItem> SearchItems(string phrase)
-        {
-            DataTable data = Database.ExecProc("uspApiSearchPOSItems", new string[] { phrase }) ?? new DataTable();
-            List<MenuItem> list = (from DataRow r in data.Rows.Cast<DataRow>()
-                                   select new MenuItem
-                                   {
-                                       Id = r["id"].ToString(),
-                                       Code = r["codes"].ToString(),
-                                       CategoryId = r["category_id"].ToString(),
-                                       Name = r["item_name"].ToString(),
-                                       Price = double.Parse(r["sale_price"].ToString()),
-                                       TaxAmount = double.Parse(r["tax_price"].ToString()),
-                                       Quantity = double.Parse(r["quantity"].ToString()),
-                                       Comment = r["comment"].ToString(),
-                                   }).ToList();
-            return list;
-        }
-
-        private List<FixedDeal> GetFixedDeals()
-        {
-            DataTable data = Database.ExecProc("uspApiPOSGetAllFixedDeals", null) ?? new DataTable();
-
-            string[] dealNames = (from DataRow x in data.Rows.Cast<DataRow>()
-                                  select x["deal_name"].ToString())
-                                  .ToArray()
-                                  .Distinct()
-                                  .ToArray();
-
-
-            List<FixedDeal> deals = new List<FixedDeal>();
-            foreach (string dealName in dealNames)
-            {
-                FixedDeal fixedDeal = (from DataRow r in data.Rows.Cast<DataRow>()
-                                       where (r["deal_name"].ToString() == dealName)
-                                       select new FixedDeal
-                                       {
-                                           Id = r["deal_id"].ToString(),
-                                           CategoryId = r["deal_category_id"].ToString(),
-                                           Code = r["deal_code"].ToString(),
-                                           Name = r["deal_name"].ToString(),
-                                           Price = double.Parse(r["deal_price"].ToString()),
-                                           Comment = r["deal_comment"].ToString(),
-                                           Quantity = double.Parse(r["deal_quantity"].ToString()),
-                                           TaxAmount = double.Parse(r["deal_tax_price"].ToString()),
-                                           Items = (from DataRow rr in data.Rows.Cast<DataRow>()
-                                                    where rr["deal_name"].ToString().Equals(r["deal_name"].ToString())
-                                                    select new MenuItem
-                                                    {
-                                                        Id = rr["id"].ToString(),
-                                                        Code = rr["code"].ToString(),
-                                                        CategoryId = rr["category_id"].ToString(),
-                                                        Name = rr["item_name"].ToString(),
-                                                        Price = double.Parse(rr["sale_price"].ToString()),
-                                                        TaxAmount = double.Parse(rr["tax_price"].ToString()),
-                                                        Quantity = double.Parse(rr["quantity"].ToString()),
-                                                        Comment = rr["comment"].ToString(),
-                                                    }).ToList(),
-                                       })
-                                              .FirstOrDefault();
-                deals.Add(fixedDeal);
-            }
-
-            return deals;
-        }
-
-        private List<OnSpotDeal> GetOnSpotDeals()
-        {
-            DataTable data = Database.ExecProc("uspApiPOSGetAllOnSpotDeals", null) ?? new DataTable();
-
-            string[] dealNames = (from DataRow x in data.Rows.Cast<DataRow>()
-                                  select x["deal_name"].ToString())
-                                  .ToArray()
-                                  .Distinct()
-                                  .ToArray();
-
-
-            List<OnSpotDeal> deals = new List<OnSpotDeal>();
-            foreach (string dealName in dealNames)
-            {
-                OnSpotDeal onSpotDeal = (from DataRow r in data.Rows.Cast<DataRow>()
-                                         where (r["deal_name"].ToString() == dealName)
-                                         select new OnSpotDeal
-                                         {
-                                             UniqueDealId = r["unique_deal_id"].ToString(),
-                                             Id = r["deal_id"].ToString(),
-                                             CategoryId = r["deal_category_id"].ToString(),
-                                             Code = r["deal_code"].ToString(),
-                                             Name = r["deal_name"].ToString(),
-                                             Price = double.Parse(r["deal_price"].ToString()),
-                                             Comment = r["deal_comment"].ToString(),
-                                             Quantity = double.Parse(r["deal_quantity"].ToString()),
-                                             TaxAmount = double.Parse(r["deal_tax_price"].ToString()),
-                                             DealItems = (from DataRow rr in data.Rows.Cast<DataRow>()
-                                                          where rr["deal_name"].ToString().Equals(r["deal_name"].ToString())
-                                                          select new OnSpotDealItem
-                                                          {
-                                                              Id = rr["id"].ToString(),
-                                                              Code = rr["code"].ToString(),
-                                                              CategoryId = rr["category_id"].ToString(),
-                                                              Name = rr["item_name"].ToString(),
-                                                              Price = double.Parse(rr["sale_price"].ToString()),
-                                                              TaxAmount = double.Parse(rr["tax_price"].ToString()),
-                                                              Quantity = double.Parse(rr["quantity"].ToString()),
-                                                              Comment = rr["comment"].ToString(),
-                                                              Choice = double.Parse(rr["choice"].ToString()),
-                                                          }).ToList(),
-                                         })
-                                              .FirstOrDefault();
-                deals.Add(onSpotDeal);
-            }
-
-            return deals;
-        }
 
         private Menu GetMenu()
         {

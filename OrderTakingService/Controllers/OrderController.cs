@@ -11,7 +11,7 @@ namespace OrderTakingService.Controllers
 {
     public class OrderController : ApiController
     {
-        public IHttpActionResult Get(string key, int tiltId, string orderNo)
+        public IHttpActionResult Get(string key, string deviceId, string orderNo)
         {
             try
             {
@@ -20,22 +20,15 @@ namespace OrderTakingService.Controllers
                     return Unauthorized();
                 }
 
-                if (tiltId < 0)
+                if (deviceId.Equals(string.Empty))
                 {
-                    return BadRequest("Invalid tilt id");
-                }
-
-                if (tiltId == 0)
-                {
-                    return BadRequest("Tilt id is missing");
+                    return BadRequest("Invalid device id");
                 }
 
                 if ("*".Equals(orderNo))
                 {
                     List<Order> newOrders = new List<Order>();
-                    DataTable data = new DataTable();
-                    data.Columns.Add("data");
-                    DataTable orderKeys = Database.GetData($"select order_key from dine_in_order where tiltid = '{ tiltId }' and account_status = 'NOT PAID' and is_delete = 0 order by order_no asc");
+                    DataTable orderKeys = Database.ExecProc("uspApiGetOrderIds", new string[] { deviceId, string.Empty });
                     for (int i = 0; i < orderKeys.Rows.Count; i++)
                     {
                         try
@@ -49,10 +42,17 @@ namespace OrderTakingService.Controllers
                 }
                 else if (int.TryParse(orderNo, out int number))
                 {
-                    DataTable orderKey = Database.GetData($"select order_key from dine_in_order where tiltid = '{ tiltId }' and order_no = '{ orderNo }' and account_status = 'NOT PAID' and is_delete = 0 order by order_no asc");
-                    Order order = DeserializeToOrder(Database.ExecProc("uspApiGetOrders", new string[] { orderKey.Rows[0][0].ToString() }).Rows[0][0].ToString());
+                    DataTable orderKey = Database.ExecProc("uspApiGetOrderIds", new string[] { deviceId, number.ToString() }) ?? new DataTable();
+                    if (orderKey.Rows.Count >= 1)
+                    {
+                        Order order = DeserializeToOrder(Database.ExecProc("uspApiGetOrders", new string[] { orderKey.Rows[0][0].ToString() }).Rows[0][0].ToString());
+                        return Ok(order);
+                    }
+                    else
+                    {
+                        return NotFound();
+                    }
 
-                    return Ok(order);
                 }
                 else
                 {
@@ -79,11 +79,11 @@ namespace OrderTakingService.Controllers
                     return BadRequest("Order is missing");
                 }
 
-                int id = 0;
+                string id = "";
                 DataTable dt = Database.ExecProc("uspApiInsertOrder", new string[] { SerializeToXml(order.Create()) });
-                id = Convert.ToInt32(dt.Rows[0][0]);
+                id = dt.Rows[0][0].ToString();
 
-                if (id >= 0)
+                if (!new List<string> { "", "0", "-1", "-2" }.Contains(id))
                 {
                     return Created(id.ToString(), order);
                 }
@@ -176,7 +176,7 @@ namespace OrderTakingService.Controllers
                 x.Serialize(xmlWriter, order);
                 xml = Encoding.UTF8.GetString(memoryStream.GetBuffer());
             }
-            System.IO.File.WriteAllText(@"D:\xml.xml", xml);
+            System.IO.File.WriteAllText(@"D:\order.xml", xml);
             return xml;
         }
 
@@ -186,10 +186,10 @@ namespace OrderTakingService.Controllers
             System.Xml.Serialization.XmlSerializer x = new System.Xml.Serialization.XmlSerializer(typeof(Order));
             byte[] vs = Encoding.UTF8.GetBytes(xml);
 
-            using(System.IO.MemoryStream memoryStream = new System.IO.MemoryStream(vs))
+            using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream(vs))
             using (XmlReader xmlReader = XmlReader.Create(memoryStream))
             {
-                 order = (Order) x.Deserialize(xmlReader);
+                order = (Order)x.Deserialize(xmlReader);
             }
 
             switch (order.OrderType)
@@ -208,109 +208,5 @@ namespace OrderTakingService.Controllers
             }
             return order.Create();
         }
-
-        // Depricated XML Serialzer/De...
-        //private Order DecodeXml(string xmlString)
-        //{
-        //    XmlDocument data = new XmlDocument();
-        //    data.LoadXml(xmlString);
-
-        //    XmlDocument values = new XmlDocument();
-        //    XmlDocument items = new XmlDocument();
-        //    XmlDocument members = new XmlDocument();
-        //    Order newOrder = new Order();
-
-        //    XmlNode valueNode = data.SelectSingleNode("data/values");
-        //    newOrder.covers = Convert.ToInt32(valueNode.SelectSingleNode("covers").InnerText);
-        //    newOrder.table = valueNode.SelectSingleNode("tableNo").InnerText;
-        //    newOrder.waiter = valueNode.SelectSingleNode("waiterNo").InnerText;
-        //    newOrder.id = valueNode.SelectSingleNode("orderKey").InnerText;
-        //    newOrder.orderNo = valueNode.SelectSingleNode("orderNo").InnerText;
-        //    newOrder.customer = valueNode.SelectSingleNode("customer").InnerText;
-        //    newOrder.contact = valueNode.SelectSingleNode("contact").InnerText;
-        //    newOrder.address = valueNode.SelectSingleNode("address").InnerText;
-        //    newOrder.orderType = getOrderType(valueNode.SelectSingleNode("orderType").InnerText);
-        //    newOrder.date = valueNode.SelectSingleNode("date").InnerText;
-        //    newOrder.time = valueNode.SelectSingleNode("time").InnerText;
-        //    newOrder.userId = valueNode.SelectSingleNode("userId").InnerText;
-        //    XmlNodeList itemsNodeList = data.SelectNodes("data/items/item");
-        //    foreach (XmlNode node in itemsNodeList)
-        //    {
-        //        newOrder.items.Add(new Item()
-        //        {
-        //            CategoryId = node.SelectSingleNode("categoryId").InnerText,
-        //            Id = node.SelectSingleNode("code").InnerText,
-        //            Name = node.SelectSingleNode("name").InnerText,
-        //            Quantity = node.SelectSingleNode("quantity").InnerText,
-        //            Price = node.SelectSingleNode("amount").InnerText,
-        //            TaxAmount = node.SelectSingleNode("taxAmount").InnerText
-        //        });
-        //    }
-
-        //    return newOrder;
-        //}
-
-        //private string CreateOrderXml(Order obj)
-        //{
-        //    try
-        //    {
-        //        StringBuilder dataString = new StringBuilder();
-        //        StringBuilder valuesString = new StringBuilder();
-        //        StringBuilder itemsString = new StringBuilder();
-        //        XmlWriterSettings settings = new XmlWriterSettings
-        //        {
-        //            OmitXmlDeclaration = true,
-        //        };
-        //        XmlWriter xmlWriter = XmlWriter.Create(valuesString, settings);
-        //        xmlWriter.WriteStartElement("values");
-        //        xmlWriter.WriteElementString("covers", obj.covers.ToString());
-        //        xmlWriter.WriteElementString("userid", obj.userId);
-        //        xmlWriter.WriteElementString("tiltid", obj.tiltId);
-        //        xmlWriter.WriteElementString("waiterNo", obj.waiter);
-        //        xmlWriter.WriteElementString("tableNo", obj.table);
-        //        xmlWriter.WriteElementString("orderType", obj.orderType);
-        //        xmlWriter.WriteElementString("customer", obj.customer);
-        //        xmlWriter.WriteElementString("contact", obj.contact);
-        //        xmlWriter.WriteElementString("address", obj.address);
-        //        xmlWriter.WriteElementString("amount", Convert.ToString(obj.TotalAmount));
-        //        xmlWriter.WriteElementString("orderKey", obj.id);
-        //        xmlWriter.WriteElementString("orderDate", obj.date);
-        //        xmlWriter.WriteEndElement();
-        //        xmlWriter.Flush();
-        //        xmlWriter.Close();
-
-
-        //        xmlWriter = XmlWriter.Create(itemsString, settings);
-        //        xmlWriter.WriteStartElement("items");
-        //        obj.items.ForEach((e) =>
-        //        {
-        //            xmlWriter.WriteStartElement("item");
-        //            xmlWriter.WriteElementString("code", e.Id);
-        //            xmlWriter.WriteElementString("name", e.Name);
-        //            xmlWriter.WriteElementString("quantity", e.Quantity);
-        //            xmlWriter.WriteElementString("price", e.Price);
-        //            xmlWriter.WriteElementString("comment", e.Comment);
-        //            xmlWriter.WriteElementString("amount", e.Amount);
-        //            xmlWriter.WriteEndElement();
-        //        });
-        //        xmlWriter.WriteEndElement();
-        //        xmlWriter.Flush();
-
-        //        xmlWriter = XmlWriter.Create(dataString, settings);
-        //        xmlWriter.WriteStartElement("data");
-        //        xmlWriter.WriteElementString("values", valuesString.ToString());
-        //        xmlWriter.WriteElementString("items", itemsString.ToString());
-        //        xmlWriter.WriteEndElement();
-        //        xmlWriter.Flush();
-        //        xmlWriter.Close();
-
-        //        return dataString.ToString();
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        System.Diagnostics.Debug.Print(ex.Message);
-        //        return "";
-        //    }
-        //}
     }
 }

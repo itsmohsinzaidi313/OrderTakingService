@@ -9,6 +9,26 @@ namespace OrderTakingService.Lib
 {
     public static class Snippets
     {
+        public static bool AuthariseUser(System.Net.Http.HttpRequestMessage response)
+        {
+            string param = response.Headers.Authorization.Parameter;
+            var bytes = System.Convert.FromBase64String(param);
+            string[] _values = new string[2];
+            if (bytes.Length >= 1)
+            {
+                _values = Encoding.UTF8.GetString(bytes).Split(':');
+            }
+
+            System.Data.DataTable riders = Database.GetData($"select userId from loginUser where username = '{_values[0]}' and userPassword = '{_values[1]}'");
+            if (riders.Rows.Count >= 1)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
         public static bool Authenticate(string hash)
         {
             if (string.IsNullOrEmpty(hash)) return false;

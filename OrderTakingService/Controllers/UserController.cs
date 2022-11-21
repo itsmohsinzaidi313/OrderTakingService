@@ -22,7 +22,6 @@ namespace OrderTakingService.Controllers
                                     {
                                         Id = dr["id"].ToString(),
                                         Name = dr["name"].ToString(),
-                                        TiltId = dr["tiltId"].ToString()
                                     }).ToList();
                 if (users.Count >= 1)
                 {

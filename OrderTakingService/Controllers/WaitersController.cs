@@ -23,8 +23,8 @@ namespace OrderTakingService.Controllers
                 List<Waiter> list = (from DataRow r in data.Rows.Cast<DataRow>()
                                      select new Waiter
                                      {
-                                         id = r["id"].ToString(),
-                                         name = r["waiter_name"].ToString()
+                                         Id = r["id"].ToString(),
+                                         Name = r["waiter_name"].ToString()
                                      }).ToList();
                 if (list.Count >= 1)
                 {

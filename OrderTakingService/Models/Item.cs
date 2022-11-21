@@ -7,8 +7,9 @@ namespace OrderTakingService.Models
     {
         public Item()
         {
-            
-        }
+        }       
+        [XmlAttribute]
+        public string RowId { get; set; }
         [XmlAttribute]
         public string Id { get; set; } = string.Empty;
         [XmlAttribute]
@@ -29,5 +30,7 @@ namespace OrderTakingService.Models
         public double Amount { get; set; } = 0;
         [XmlAttribute]
         public bool Selected { get; set; } = false;
+        [XmlAttribute]
+        public bool IsAdditional { get; set; } = false;
     }
 }

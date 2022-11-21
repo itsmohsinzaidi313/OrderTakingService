@@ -56,9 +56,9 @@ namespace OrderTakingService.Controllers
             List<Table> tables = (from DataRow r in data.Rows.Cast<DataRow>()
                                   select new Table
                                   {
-                                      id = r["id"].ToString(),
-                                      tableName = r["tables"].ToString(),
-                                      reserved = r["table_status"].ToString() == "Open",
+                                      Id = r["id"].ToString(),
+                                      Name = r["tables"].ToString(),
+                                      Reserved = r["table_status"].ToString() == "Open",
                                   }).ToList();
             return tables;
         }

@@ -8,7 +8,7 @@ namespace OrderTakingService.Lib
     public static class Database
     {
 
-        private static bool Testing = true;
+        private static bool Testing => ConfigurationManager.AppSettings["TestingDatabase"].ToLower().Equals("true");
         private static string ConnString
         {
             get
@@ -103,40 +103,53 @@ namespace OrderTakingService.Lib
 
         public static double GetDoubleData(string Query)
         {
-            SqlCommand sqlCmd = GetSqlCommand();
-            sqlCmd.CommandText = Query;
-            sqlCmd.Connection.Open();
-            SqlDataReader dataReader = sqlCmd.ExecuteReader();
-            double value = 0.0;
-            while (dataReader.Read())
+            using (SqlCommand sqlCmd = GetSqlCommand())
             {
-                value = dataReader.GetDouble(0);
+                sqlCmd.CommandText = Query;
+                sqlCmd.Connection.Open();
+                using (SqlDataReader dataReader = sqlCmd.ExecuteReader())
+                {
+                    double value = 0.0;
+                    while (dataReader.Read())
+                    {
+                        try
+                        {
+                            value = dataReader.GetDouble(0);
+                        }
+                        catch (InvalidCastException e)
+                        {
+                            value = dataReader.GetInt32(0);
+                        }
+                    }
+                    sqlCmd.Connection.Close();
+                    return value;
+                }
             }
-            sqlCmd.Connection.Close();
-            return value;
         }
 
         public static DataTable ExecProc(string ProcName, string[] parameters)
-         {
+        {
             try
             {
                 DataTable data = new DataTable();
-                SqlCommand sqlCmd = GetSqlCommand();
-                sqlCmd.Connection.Open();
-                sqlCmd.CommandType = CommandType.StoredProcedure;
-                sqlCmd.CommandText = ProcName;
-                DataTable procParameters = GetData("select PARAMETER_NAME, DATA_TYPE from information_schema.parameters where specific_name='" + ProcName + "'") ?? new DataTable();
-
-                for (int i = 0; i < procParameters.Rows.Count; i++)
+                using (SqlCommand sqlCmd = GetSqlCommand())
                 {
-                    sqlCmd.Parameters.AddWithValue(procParameters.Rows[i]["PARAMETER_NAME"].ToString(), parameters[i]);
+
+                    sqlCmd.Connection.Open();
+                    sqlCmd.CommandType = CommandType.StoredProcedure;
+                    sqlCmd.CommandText = ProcName;
+                    DataTable procParameters = GetData("select PARAMETER_NAME, DATA_TYPE from information_schema.parameters where specific_name='" + ProcName + "'") ?? new DataTable();
+
+                    for (int i = 0; i < procParameters.Rows.Count; i++)
+                    {
+                        sqlCmd.Parameters.AddWithValue(procParameters.Rows[i]["PARAMETER_NAME"].ToString(), parameters[i]);
+                    }
+                    SqlDataAdapter dataAdapter = new SqlDataAdapter(sqlCmd);
+                    dataAdapter.Fill(data);
+                    return data;
                 }
-                SqlDataAdapter dataAdapter = new SqlDataAdapter(sqlCmd);
-                dataAdapter.Fill(data);
-                sqlCmd.Connection.Close();
-                return data;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 return GetData($"{ProcName} @xml = '{parameters[0]}'");
             }
